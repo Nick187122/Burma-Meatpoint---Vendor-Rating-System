@@ -1,0 +1,14 @@
+# Environments
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Database (Do not push your local DB to GitHub)
+db.sqlite3
+
+# Security
+.env
