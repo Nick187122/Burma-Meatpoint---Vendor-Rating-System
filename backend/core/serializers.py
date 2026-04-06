@@ -7,7 +7,7 @@ from rest_framework import serializers
 from .models import (
     User, VendorDetails, VendorRequest,
     Rating, VendorReply, FlaggedReview, RatingAlgorithmConfig,
-    ShopNameChangeRequest
+    ShopNameChangeRequest, Favorite, AdminAuditLog, Notification, DevicePushToken
 )
 
 
@@ -57,10 +57,24 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """Read-only user profile."""
+    vendor_details_id = serializers.SerializerMethodField()
+    unread_notifications = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'email', 'name', 'phone', 'role', 'status', 'is_vendor_approved', 'date_joined']
-        read_only_fields = ['role', 'status', 'is_vendor_approved', 'date_joined']
+        fields = [
+            'id', 'email', 'name', 'phone', 'role', 'status',
+            'is_vendor_approved', 'email_verified', 'date_joined',
+            'vendor_details_id', 'unread_notifications'
+        ]
+        read_only_fields = ['role', 'status', 'is_vendor_approved', 'email_verified', 'date_joined', 'vendor_details_id', 'unread_notifications']
+
+    def get_vendor_details_id(self, obj):
+        vendor_details = getattr(obj, 'vendor_details', None)
+        return getattr(vendor_details, 'id', None)
+
+    def get_unread_notifications(self, obj):
+        return obj.notifications.filter(is_read=False).count()
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -87,7 +101,7 @@ class VendorDetailsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'vendor', 'vendor_name', 'vendor_email', 'vendor_status',
             'shop_name', 'location', 'kebs_license', 'meat_types', 'price_range',
-            'description', 'profile_image', 'meat_photo',
+            'description', 'profile_image', 'meat_photo', 'latitude', 'longitude',
             'hygiene_score', 'freshness_score', 'service_score', 'overall_score',
             'total_ratings', 'created_at',
         ]
@@ -112,6 +126,7 @@ class VendorListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'vendor_name', 'shop_name', 'location',
             'meat_types', 'price_range', 'profile_image', 'meat_photo',
+            'latitude', 'longitude',
             'overall_score', 'hygiene_score', 'total_ratings',
         ]
 
@@ -129,7 +144,7 @@ class VendorRequestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'user_email', 'user_name',
             'shop_name', 'location', 'kebs_license', 'meat_types',
-            'price_range', 'description', 'status',
+            'price_range', 'description', 'latitude', 'longitude', 'status',
             'submitted_date', 'reviewed_date', 'admin_notes',
         ]
         read_only_fields = ['user', 'status', 'submitted_date', 'reviewed_date', 'admin_notes']
@@ -175,6 +190,12 @@ class RatingSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.anonymous_mode:
+            data['consumer'] = None
+        return data
+
     def validate_comment(self, value):
         return sanitize_text(value)
 
@@ -187,11 +208,7 @@ class RatingSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context.get('request')
-        anonymous = validated_data.get('anonymous_mode', False)
-        if anonymous:
-            validated_data['consumer'] = None
-        else:
-            validated_data['consumer'] = request.user
+        validated_data['consumer'] = request.user
         return super().create(validated_data)
 
 
@@ -234,9 +251,10 @@ class RatingAlgorithmConfigSerializer(serializers.ModelSerializer):
         read_only_fields = ['updated_at']
 
     def validate(self, data):
-        hw = float(data.get('hygiene_weight', 0))
-        fw = float(data.get('freshness_weight', 0))
-        sw = float(data.get('service_weight', 0))
+        instance = getattr(self, 'instance', None)
+        hw = float(data.get('hygiene_weight', getattr(instance, 'hygiene_weight', 0)))
+        fw = float(data.get('freshness_weight', getattr(instance, 'freshness_weight', 0)))
+        sw = float(data.get('service_weight', getattr(instance, 'service_weight', 0)))
         total = hw + fw + sw
         if abs(total - 1.0) > 0.001:
             raise serializers.ValidationError(
@@ -257,7 +275,7 @@ class VendorProfileUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = VendorDetails
-        fields = ['meat_types', 'price_range', 'profile_image', 'meat_photo']
+        fields = ['meat_types', 'price_range', 'profile_image', 'meat_photo', 'latitude', 'longitude']
 
 
 class ShopNameChangeRequestSerializer(serializers.ModelSerializer):
@@ -268,3 +286,59 @@ class ShopNameChangeRequestSerializer(serializers.ModelSerializer):
         model = ShopNameChangeRequest
         fields = '__all__'
         read_only_fields = ['vendor', 'old_name', 'status', 'request_date', 'reviewed_date', 'admin_notes']
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FAVORITES
+# ──────────────────────────────────────────────────────────────────────────────
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    """Serializer for consumer's saved/bookmarked vendors."""
+    vendor_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Favorite
+        fields = ['id', 'vendor', 'vendor_details', 'created_at']
+        read_only_fields = ['created_at']
+
+    def get_vendor_details(self, obj):
+        return {
+            'id': obj.vendor.id,
+            'shop_name': obj.vendor.shop_name,
+            'location': obj.vendor.location,
+            'meat_types': obj.vendor.meat_types,
+            'price_range': obj.vendor.price_range,
+            'overall_score': float(obj.vendor.overall_score),
+            'total_ratings': obj.vendor.total_ratings,
+            'profile_image': obj.vendor.profile_image,
+        }
+
+
+class AdminAuditLogSerializer(serializers.ModelSerializer):
+    admin_email = serializers.ReadOnlyField(source='admin.email')
+    admin_name = serializers.ReadOnlyField(source='admin.name')
+
+    class Meta:
+        model = AdminAuditLog
+        fields = [
+            'id', 'admin', 'admin_email', 'admin_name', 'action',
+            'target_type', 'target_id', 'metadata', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'kind', 'title', 'message', 'metadata', 'is_read', 'created_at']
+        read_only_fields = fields
+
+
+class DevicePushTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DevicePushToken
+        fields = ['id', 'token', 'platform', 'device_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'is_active', 'created_at', 'updated_at']
+
+    def validate_device_name(self, value):
+        return sanitize_text(value)

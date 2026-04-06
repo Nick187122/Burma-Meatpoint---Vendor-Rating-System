@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "user_id": 2,
+    "shop_name": "Nairobi Best Meat",
+    "location": "Burma Market",
+    "kebs_license": "KEB 980-290-203",
+    "meat_types": "Mixed",
+    "price_range": null,
+    "description": null,
+    "latitude": null,
+    "longitude": null,
+    "status": "Approved",
+    "submitted_date": "2026-03-21 09:01:29.892061+00:00",
+    "reviewed_date": "2026-03-21 09:09:40.621564+00:00",
+    "admin_notes": ""
+  }
+]

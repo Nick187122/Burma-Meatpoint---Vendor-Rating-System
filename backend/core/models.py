@@ -71,6 +71,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    email_verified = models.BooleanField(default=False)
+    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(default=timezone.now)
 
     objects = UserManager()
@@ -147,6 +150,8 @@ class VendorDetails(models.Model):
     description = models.TextField(blank=True, null=True)
     profile_image = models.URLField(blank=True, null=True)
     meat_photo = models.TextField(blank=True, null=True)  # Base64 image payload
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     # Composite rating scores (updated on every new Rating)
     hygiene_score = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, db_index=True)
@@ -175,6 +180,19 @@ class VendorDetails(models.Model):
         from django.db.models import Avg
         ratings = self.vendor_ratings.all()
         if not ratings.exists():
+            self.hygiene_score = 0
+            self.freshness_score = 0
+            self.service_score = 0
+            self.overall_score = 0
+            self.total_ratings = 0
+            self.save(update_fields=[
+                'hygiene_score',
+                'freshness_score',
+                'service_score',
+                'overall_score',
+                'total_ratings',
+                'updated_at',
+            ])
             return
 
         if config is None:
@@ -218,6 +236,8 @@ class VendorRequest(models.Model):
     meat_types = models.CharField(max_length=200, default='Mixed')
     price_range = models.CharField(max_length=50, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending', db_index=True)
     submitted_date = models.DateTimeField(auto_now_add=True)
     reviewed_date = models.DateTimeField(null=True, blank=True)
@@ -294,6 +314,12 @@ class Rating(models.Model):
         super().save(*args, **kwargs)
         # Recalculate vendor scores after every new/updated rating
         self.vendor.recalculate_scores()
+
+    def delete(self, *args, **kwargs):
+        vendor = self.vendor
+        result = super().delete(*args, **kwargs)
+        vendor.recalculate_scores()
+        return result
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -405,3 +431,112 @@ class ShopNameChangeRequest(models.Model):
 
     def __str__(self):
         return f"{self.vendor.email}: {self.old_name} -> {self.new_name} ({self.status})"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CONSUMER FAVORITES
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Favorite(models.Model):
+    """Consumer saves/bookmarks a vendor shop."""
+    consumer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='favorites',
+        limit_choices_to={'role': 'Consumer'}
+    )
+    vendor = models.ForeignKey(
+        VendorDetails,
+        on_delete=models.CASCADE,
+        related_name='favorited_by'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('consumer', 'vendor')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.consumer.email} ♥ {self.vendor.shop_name}"
+class AdminAuditLog(models.Model):
+    ACTION_CHOICES = (
+        ('vendor_request_approved', 'Vendor request approved'),
+        ('vendor_request_rejected', 'Vendor request rejected'),
+        ('vendor_suspended', 'Vendor suspended'),
+        ('vendor_unsuspended', 'Vendor unsuspended'),
+        ('flag_resolved', 'Flag resolved'),
+        ('flag_dismissed', 'Flag dismissed'),
+        ('shop_name_approved', 'Shop name approved'),
+        ('shop_name_rejected', 'Shop name rejected'),
+        ('rating_config_updated', 'Rating config updated'),
+    )
+
+    admin = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audit_logs')
+    action = models.CharField(max_length=64, choices=ACTION_CHOICES)
+    target_type = models.CharField(max_length=64)
+    target_id = models.CharField(max_length=64, null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.admin.email}: {self.action} ({self.target_type}:{self.target_id})"
+
+
+class Notification(models.Model):
+    KIND_CHOICES = (
+        ('rating_received', 'Rating received'),
+        ('reply_received', 'Reply received'),
+        ('vendor_request_submitted', 'Vendor request submitted'),
+        ('vendor_request_approved', 'Vendor request approved'),
+        ('vendor_request_rejected', 'Vendor request rejected'),
+        ('shop_name_approved', 'Shop name approved'),
+        ('shop_name_rejected', 'Shop name rejected'),
+        ('vendor_suspended', 'Vendor suspended'),
+        ('vendor_unsuspended', 'Vendor unsuspended'),
+        ('review_flagged', 'Review flagged'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    kind = models.CharField(max_length=64, choices=KIND_CHOICES)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email}: {self.kind}"
+
+
+class DevicePushToken(models.Model):
+    PLATFORM_CHOICES = (
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+        ('web', 'Web'),
+        ('unknown', 'Unknown'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='device_push_tokens')
+    token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES, default='unknown')
+    device_name = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_used_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['platform']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email}: {self.platform} push token"

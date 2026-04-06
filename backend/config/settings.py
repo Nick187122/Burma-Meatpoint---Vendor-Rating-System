@@ -13,7 +13,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ──────────────────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-development-key')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,testserver', cast=Csv())
+if 'testserver' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('testserver')
 
 AUTH_USER_MODEL = 'core.User'
 
@@ -165,6 +167,7 @@ SIMPLE_JWT = {
 # CORS
 # ──────────────────────────────────────────────────────────────────────────────
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+MOBILE_APP_SCHEME = config('MOBILE_APP_SCHEME', default='mobile')
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
@@ -225,5 +228,10 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@burmameatpoint.local')
+EXPO_PUSH_API_URL = config('EXPO_PUSH_API_URL', default='https://exp.host/--/api/v2/push/send')
+EXPO_PUSH_ACCESS_TOKEN = config('EXPO_PUSH_ACCESS_TOKEN', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

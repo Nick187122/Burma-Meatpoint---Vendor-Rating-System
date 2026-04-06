@@ -11,6 +11,7 @@ import VendorProfilePage from '../pages/VendorProfilePage';
 import BecomeVendorPage from '../pages/BecomeVendorPage';
 import VendorDashboard from '../pages/VendorDashboard';
 import AdminDashboard from '../pages/AdminDashboard';
+import ConsumerDashboard from '../pages/ConsumerDashboard';
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,14 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['Consumer', 'Vendor']} />,
         children: [
           { path: '/become-vendor', element: <BecomeVendorPage /> }
+        ]
+      },
+
+      // Consumer profile route
+      {
+        element: <ProtectedRoute allowedRoles={['Consumer']} />,
+        children: [
+          { path: '/profile', element: <ConsumerDashboard /> }
         ]
       },
 

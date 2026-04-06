@@ -27,6 +27,11 @@ export default function VendorCard({ vendor }) {
         <div className="vendor-card-location flex gap-2">
           <MapPin size={14} /> {vendor.location}
         </div>
+        {vendor.distance_km != null && (
+          <div className="text-xs text-muted mb-2">
+            {Number(vendor.distance_km).toFixed(1)} km away
+          </div>
+        )}
         
         <div className="flex flex-wrap gap-2 mb-3">
           {vendor.meat_types?.split(',').map((type, i) => (

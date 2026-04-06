@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "mobile",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "scheme": "mobile",
+    "orientation": "portrait",
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Burma Meat Point to access your location to show nearby vendors on the map."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Burma Meat Point to use your camera to scan vendor QR codes."
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow Burma Meat Point to access your location to show nearby vendors on the map.",
+        "NSCameraUsageDescription": "Allow Burma Meat Point to use your camera to scan vendor QR codes."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000/api/v1",
+      "expoProjectId": "",
+      "googleWebClientId": "",
+      "googleAndroidClientId": "",
+      "googleIosClientId": "",
+      "facebookAppId": ""
+    }
+  }
+}

@@ -6,21 +6,23 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     User, VendorDetails, VendorRequest,
-    Rating, VendorReply, FlaggedReview, RatingAlgorithmConfig
+    Rating, VendorReply, FlaggedReview, RatingAlgorithmConfig, AdminAuditLog,
+    Notification, DevicePushToken
 )
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'name', 'role', 'status', 'is_vendor_approved', 'date_joined']
-    list_filter = ['role', 'status', 'is_vendor_approved']
+    list_display = ['email', 'name', 'role', 'status', 'is_vendor_approved', 'email_verified', 'date_joined']
+    list_filter = ['role', 'status', 'is_vendor_approved', 'email_verified']
     search_fields = ['email', 'name', 'phone']
     ordering = ['-date_joined']
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('name', 'phone')}),
-        ('Role & Status', {'fields': ('role', 'status', 'is_vendor_approved')}),
+        ('Role & Status', {'fields': ('role', 'status', 'is_vendor_approved', 'email_verified')}),
         ('Security', {'fields': ('login_attempts', 'account_locked', 'locked_until', 'permanently_locked')}),
+        ('Verification', {'fields': ('email_verification_sent_at', 'email_verified_at')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
@@ -79,3 +81,27 @@ class RatingConfigAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(AdminAuditLog)
+class AdminAuditLogAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'admin', 'action', 'target_type', 'target_id']
+    list_filter = ['action', 'target_type', 'created_at']
+    search_fields = ['admin__email', 'target_id']
+    readonly_fields = ['created_at']
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'user', 'kind', 'title', 'is_read']
+    list_filter = ['kind', 'is_read', 'created_at']
+    search_fields = ['user__email', 'title', 'message']
+    readonly_fields = ['created_at']
+
+
+@admin.register(DevicePushToken)
+class DevicePushTokenAdmin(admin.ModelAdmin):
+    list_display = ['updated_at', 'user', 'platform', 'device_name', 'is_active']
+    list_filter = ['platform', 'is_active', 'updated_at']
+    search_fields = ['user__email', 'token', 'device_name']
+    readonly_fields = ['created_at', 'updated_at', 'last_used_at']

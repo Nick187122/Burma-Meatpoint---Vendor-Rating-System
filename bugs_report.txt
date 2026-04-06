@@ -1,0 +1,97 @@
+Bug Report
+==========
+
+Project: C:\PROJECT
+Date: 2026-04-03
+
+1. Vendor score aggregates stay stale after an admin deletes a flagged review
+Severity: High
+Files:
+- backend/core/views.py:621-646
+- backend/core/models.py:173-178
+Problem:
+- `AdminResolveFlagView` deletes the rating with `flag.rating.delete()`.
+- Vendor aggregates are only recalculated in `Rating.save()`, not on delete.
+- `VendorDetails.recalculate_scores()` returns early when no ratings remain, so old totals and scores are left behind.
+Impact:
+- `overall_score`, component scores, and `total_ratings` can remain incorrect after moderation removes a review.
+- Top-rated ordering and vendor profile stats can become permanently wrong.
+Suggested fix:
+- Recalculate the affected vendor after a rating is deleted.
+- Reset all score fields and `total_ratings` to `0` when a vendor has no remaining ratings.
+
+2. Admin Users tab calls suspend/unsuspend endpoints with the wrong identifier
+Severity: High
+Files:
+- frontend_web/src/pages/AdminDashboard.jsx:97-104
+- frontend_web/src/pages/AdminDashboard.jsx:371-388
+- backend/core/views.py:568-609
+Problem:
+- The admin users table sends `u.id` to `/admin/vendors/<id>/suspend/` and `/admin/vendors/<id>/unsuspend/`.
+- Those backend endpoints fetch `VendorDetails.objects.get(id=vendor_id)`, so they expect a `VendorDetails.id`, not a `User.id`.
+Impact:
+- Suspending or reinstating a vendor from the Users tab will 404 or hit the wrong record whenever `User.id != VendorDetails.id`.
+Suggested fix:
+- Make the frontend send the vendor-details id, or change the backend endpoints to accept a user id consistently.
+
+3. Vendor profile page never recognizes the logged-in vendor as the owner
+Severity: Medium
+Files:
+- frontend_web/src/pages/VendorProfilePage.jsx:59
+- frontend_web/src/pages/VendorProfilePage.jsx:177-206
+- backend/core/serializers.py:78-91
+Problem:
+- `VendorProfilePage` computes ownership with `user?.id === vendor.user`.
+- The API serializer exposes the owner field as `vendor`, not `user`.
+- `vendor.user` is therefore `undefined`.
+Impact:
+- A vendor visiting their own public profile does not get owner-only actions there.
+- Reply and flag controls guarded by `isMyVendor` never appear on that page.
+Suggested fix:
+- Compare against `vendor.vendor`, or expose a dedicated owner id field and consume that consistently.
+
+4. Anonymous ratings disappear from the consumer's own rating history
+Severity: Medium
+Files:
+- backend/core/serializers.py:188-195
+- backend/core/views.py:800-808
+Problem:
+- When `anonymous_mode` is true, the serializer stores `consumer = None`.
+- The consumer history endpoint only loads ratings where `consumer=self.request.user`.
+Impact:
+- A user can submit an anonymous review successfully, but it will not appear in "My Ratings" afterward.
+- That makes anonymous reviews untraceable for the submitting consumer.
+Suggested fix:
+- Keep the consumer relation for ownership/audit purposes and hide identity only in read serializers, or store anonymity separately while preserving the author link.
+
+5. Rating config PATCH is not actually partial
+Severity: Medium
+Files:
+- backend/core/serializers.py:236-245
+- backend/core/views.py:654-676
+Problem:
+- `RatingAlgorithmConfigSerializer.validate()` defaults missing weights to `0`.
+- The view uses `partial=True`, but sending only one field fails because omitted fields are treated as zero.
+Impact:
+- The endpoint is documented and implemented as PATCH, but partial updates are rejected unless the client resends all three weights.
+Suggested fix:
+- Merge missing values with the existing instance values during validation.
+
+6. Frontend linting is currently broken
+Severity: Low
+Files:
+- frontend_web/src/pages/VendorDashboard.jsx:9
+Problem:
+- `user` is destructured from the auth store and never used.
+- `npm run lint` fails with `no-unused-vars`.
+Impact:
+- CI or local quality checks fail even though the production build succeeds.
+Suggested fix:
+- Remove the unused variable or use it intentionally.
+
+Verification notes
+------------------
+- `npm run build` in `frontend_web` succeeded.
+- `npm run lint` in `frontend_web` failed with one error: unused `user` in `src/pages/VendorDashboard.jsx`.
+- `python manage.py check` in `backend` could not run because Django is not installed in the current environment (`ModuleNotFoundError: No module named 'django'`).
+- `backend/core/tests.py` is still just the default placeholder, so these findings are coming from code review plus the frontend verification commands above rather than backend automated tests.

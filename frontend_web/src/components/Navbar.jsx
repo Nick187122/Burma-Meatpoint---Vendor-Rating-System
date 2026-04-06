@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { LogOut, User, Store, Shield } from 'lucide-react';
+import { LogOut, User, Store, Shield, Heart } from 'lucide-react';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -18,22 +18,27 @@ export default function Navbar() {
               {user.role === 'Consumer' && !user.is_vendor_approved && (
                 <Link to="/become-vendor" className="nav-link">Become a Vendor</Link>
               )}
+              {user.role === 'Consumer' && (
+                <Link to="/profile" className="nav-link flex gap-1.5 items-center">
+                  <Heart size={15} /> My Profile
+                </Link>
+              )}
               {user.role === 'Vendor' && user.is_vendor_approved && (
-                <Link to="/vendor-dashboard" className="nav-link flex gap-2">
+                <Link to="/vendor-dashboard" className="nav-link flex gap-2 items-center">
                   <Store size={16} /> Dashboard
                 </Link>
               )}
               {user.role === 'Admin' && (
-                <Link to="/admin" className="nav-link flex gap-2 text-orange">
+                <Link to="/admin" className="nav-link flex gap-2 items-center text-orange">
                   <Shield size={16} /> Admin
                 </Link>
               )}
               
-              <div className="nav-link flex gap-2" style={{ cursor: 'default', color: 'var(--text-muted)' }}>
+              <Link to={user.role === 'Consumer' ? '/profile' : '#'} className="nav-link flex gap-2 items-center">
                 <User size={16} /> {user.name}
-              </div>
+              </Link>
               
-              <button onClick={logout} className="nav-link flex gap-2" style={{ color: 'var(--danger)' }}>
+              <button onClick={logout} className="nav-link flex gap-2 items-center" style={{ color: 'var(--danger)' }}>
                 <LogOut size={16} />
               </button>
             </>

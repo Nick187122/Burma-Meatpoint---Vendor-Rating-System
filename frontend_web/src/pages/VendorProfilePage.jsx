@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import useAuthStore from '../store/authStore';
 import StarRating from '../components/StarRating';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 export default function VendorProfilePage() {
   const { id } = useParams();
   const { isAuthenticated, user } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const { data: vendor, isLoading: vendorLoading } = useQuery({
     queryKey: ['vendor', id],
@@ -34,28 +35,29 @@ export default function VendorProfilePage() {
     try {
       await client.post(`/vendor/ratings/${reviewId}/flag/`, { reason });
       toast.success('Review flagged for Admin moderation.');
-    } catch {
-      toast.error('Failed to flag review.');
+      queryClient.invalidateQueries(['ratings', id]);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Failed to flag review.');
     }
   };
 
   const handleReply = async (reviewId) => {
-    const reply = prompt('Enter your reply:');
-    if (!reply) return;
+    const reply_text = prompt('Enter your reply:');
+    if (!reply_text) return;
     try {
-      await client.post(`/vendor/ratings/${reviewId}/reply/`, { reply });
+      await client.post(`/vendor/ratings/${reviewId}/reply/`, { reply_text });
       toast.success('Reply posted.');
-      // Refetch would trigger here normally via QueryClient invalidate but 
-      // simple page reload works for now or let React Query refetch on focus
-    } catch {
-      toast.error('Failed to post reply.');
+      queryClient.invalidateQueries(['ratings', id]);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Failed to post reply.');
     }
   };
 
   if (vendorLoading) return <div className="container py-12 text-center text-muted spin">Loading...</div>;
   if (!vendor) return <div className="container py-12 text-center text-danger">Vendor not found</div>;
 
-  const isMyVendor = user?.id === vendor.user;
+  const isMyVendor = user?.id === vendor.vendor;
+  const reviews = Array.isArray(ratingsData) ? ratingsData : (ratingsData?.results || []);
 
   return (
     <div className="container py-8">
@@ -150,10 +152,10 @@ export default function VendorProfilePage() {
           <div className="flex-col gap-4">
             {ratingsLoading ? (
               <div className="text-muted p-4">Loading reviews...</div>
-            ) : ratingsData?.results?.length === 0 ? (
+            ) : reviews.length === 0 ? (
               <div className="card text-center py-12 text-muted">No reviews yet. Be the first!</div>
             ) : (
-              ratingsData?.results?.map(rating => (
+              reviews.map(rating => (
                 <div key={rating.id} className="card p-5 relative border-active">
                   <div className="flex-between mb-3 border-b border-[var(--border)] pb-3">
                     <div className="flex items-center gap-3">
@@ -193,12 +195,12 @@ export default function VendorProfilePage() {
                   </div>
 
                   {/* Vendor Reply Thread */}
-                  {rating.reply ? (
+                  {rating.vendor_reply ? (
                     <div className="mt-4 p-4 bg-orange-500/5 border-l-2 border-orange-500 rounded-r-md">
                       <div className="text-xs font-bold text-orange mb-1 flex items-center gap-1">
                         <Store size={12}/> Vendor Response
                       </div>
-                      <p className="text-sm text-secondary">{rating.reply.reply_text}</p>
+                      <p className="text-sm text-secondary">{rating.vendor_reply.text}</p>
                     </div>
                   ) : isMyVendor ? (
                     <div className="mt-4">
