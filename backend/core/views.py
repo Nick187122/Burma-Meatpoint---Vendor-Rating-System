@@ -204,6 +204,7 @@ def build_auth_response(user, status_code=status.HTTP_200_OK):
     refresh = RefreshToken.for_user(user)
     response = Response({
         'access': str(refresh.access_token),
+        'refresh': str(refresh),
         'user': UserSerializer(user).data,
     }, status=status_code)
     set_refresh_cookie(response, refresh)
@@ -252,6 +253,7 @@ class RegisterView(APIView):
             refresh = RefreshToken.for_user(user)
             response = Response({
                 'access': str(refresh.access_token),
+                'refresh': str(refresh),
                 'user': UserSerializer(user).data,
                 'message': (
                     'Registration successful. Check your email to verify your account.'
@@ -1172,7 +1174,7 @@ class AdminSuspendVendorView(APIView):
         )
 
         # Invalidate caches
-        cache.delete(f'vendor_profile_{vendor_id}')
+        cache.delete(f'vendor_profile_{vendor_details.id}')
         cache.delete('top_rated_vendors')
 
         return Response({
@@ -1207,7 +1209,7 @@ class AdminUnsuspendVendorView(APIView):
             f"Your vendor account for '{vendor_details.shop_name}' has been reinstated.",
             {'vendor_id': vendor_details.id},
         )
-        cache.delete(f'vendor_profile_{vendor_id}')
+        cache.delete(f'vendor_profile_{vendor_details.id}')
         cache.delete('top_rated_vendors')
 
         return Response({'message': f"Vendor '{vendor_details.shop_name}' has been reinstated."})

@@ -138,9 +138,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '1000/day',
-        'login': '10/hour',
+        'anon': '10000/day',
+        'user': '10000/day',
+        'login': '10000/hour',
         'rating': '50/day',
     },
 }
@@ -168,8 +168,18 @@ SIMPLE_JWT = {
 # ──────────────────────────────────────────────────────────────────────────────
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 MOBILE_APP_SCHEME = config('MOBILE_APP_SCHEME', default='mobile')
-CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default=FRONTEND_URL,
+    cast=Csv(),
+)
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default=FRONTEND_URL,
+    cast=Csv(),
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SECURITY HEADERS
